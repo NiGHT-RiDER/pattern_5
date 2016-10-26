@@ -17,51 +17,95 @@ public class Bien {
             public boolean mettreOption(Bien b, Offre o) throws ArgumentInvalideException {
                 if (!b.contientOffre(o))
                     return false;
-                if (o.getEtat() != EtatOffre.ACCEPTEE && o.getEtat() != EtatOffre.SOUMISE)
+                if (o.isAccepted() && o.getEtat() != EtatOffre.SOUMISE)
                     return false;
                 b.etat = EtatBien.OPTION;
                 o.accepterOffre();
                 return true;
             }
 
-            // TODO refuser
             @Override
             public boolean refuser(Bien b) {
                 b.etat = EtatBien.INITIAL;
                 for (Offre offre: b.offres) {
-                    if (offre.getEtat() == EtatOffre.ACCEPTEE)
+                    if (offre.isAccepted())
                         offre.refuserOffre();
                 }
                 return true;
             }
 
+            @Override
+            public boolean ajouterOffre(Bien b, Offre o) throws PlusDOffresPossiblesException, ArgumentInvalideException {
+                if (b.contientOffre(o)) // v�rifie d�j� si offre == null
+                    return false;
+                if (o.getBien() != b)
+                    return false;
+                b.offres.add(o);
+                return true;
+            }
         }, OPTION{
             // TODO refuser
             @Override
             public boolean refuser(Bien b) {
                 b.etat = EtatBien.INITIAL;
                 for (Offre offre: b.offres) {
-                    if (offre.getEtat() == EtatOffre.ACCEPTEE)
+                    if (offre.isAccepted())
                         offre.refuserOffre();
                 }
                 return true;
             }
 
+            @Override
+            public boolean signerCompromis(Bien b, Offre o) throws ArgumentInvalideException {
+                if (!b.contientOffre(o))
+                    return false;
+                if (o.isAccepted())
+                    return false;
+                b.etat = EtatBien.COMPROMIS_SIGNE;
+                return true;
+
+            }
         },
         COMPROMIS_SIGNE{
+            @Override
+            public boolean vendre(Bien b , Offre o) throws ArgumentInvalideException {
+                if (!b.contientOffre(o))
+                    return false;
+                if (o.isAccepted())
+                    return false;
+                b.etat = EtatBien.VENDU;
+                return true;
+            }
 
         },
         VENDU{
-
+            @Override
+            public boolean annuler(Bien b) {
+                return false;
+            }
         };
-        // rentre bien getetat
-        // offre getetat private
 
         public boolean refuser(Bien b){return false;}
-        public boolean annuler(Bien b){return false;}
-        public boolean signerCompromis(Bien b,Offre o){return false;}
+
+        public boolean annuler(Bien b){
+            b.etat = EtatBien.INITIAL;
+            for (Offre offre: b.offres) {
+                if (offre.isAccepted())
+                    offre.annulerOffre();
+            }
+            return true;
+
+        }
+
+        public boolean signerCompromis(Bien b,Offre o) throws ArgumentInvalideException {return false;}
+
+        public boolean ajouterOffre(Bien b,Offre o) throws PlusDOffresPossiblesException, ArgumentInvalideException {
+            throw new PlusDOffresPossiblesException();
+        }
+
         public boolean mettreOption(Bien b,Offre o) throws ArgumentInvalideException {return false;}
-        public boolean vendre(Bien b,Offre o){return false;}
+
+        public boolean vendre(Bien b,Offre o) throws ArgumentInvalideException {return false;}
 
     }
 
@@ -81,56 +125,28 @@ public class Bien {
     // Ne peut pas se faire si le compromis est sign� ou le bien vendu
     // Si une offre est accept�e, on la refuse via refuserOffre d'Offre
     public boolean refuser() {
-        if (this.etat == EtatBien.COMPROMIS_SIGNE || this.etat == EtatBien.VENDU)
-            return false;
-        this.etat = EtatBien.INITIAL;
-        for (Offre offre: offres) {
-            if (offre.getEtat() == EtatOffre.ACCEPTEE)
-                offre.refuserOffre();
-        }
-        return true;
+        return etat.refuser(this);
     }
 
     // R�initialise l'�tat du bien en annulantt (�ventuellement) une offre accept�e pr�c�demment
     // Ne peut pas se faire si le bien est vendu
     // Si une offre est accept�e, on l'annule via annulerOffre d'Offre
     public boolean annuler() {
-        if (this.etat == EtatBien.VENDU)
-            return false;
-        this.etat = EtatBien.INITIAL;
-        for (Offre offre: offres) {
-            if (offre.getEtat() == EtatOffre.ACCEPTEE)
-                offre.annulerOffre();
-        }
-        return true;
+        return etat.annuler(this);
     }
 
     // Signe le compromis pour l'offre pass�e
     // Une option doit avoir �t� plac�e sur ce bien au pr�alable
     // L'offre pass�e doit �tre une offre accept�e pour ce bien
     public boolean signerCompromis(Offre offre) throws ArgumentInvalideException {
-        if (!this.contientOffre(offre))
-            return false;
-        if (this.etat != EtatBien.OPTION)
-            return false;
-        if (offre.getEtat() != EtatOffre.ACCEPTEE)
-            return false;
-        this.etat = EtatBien.COMPROMIS_SIGNE;
-        return true;
+        return etat.signerCompromis(this,offre);
     }
 
     // Vend le bien � l'acheteur ayant fait l'offre pass�e
     // Le compromis doit avoir �t� sign�
     // L'offre pass�e doit �tre une offre accept�e pour ce bien
     public boolean vendre(Offre offre) throws ArgumentInvalideException {
-        if (!this.contientOffre(offre))
-            return false;
-        if (this.etat != EtatBien.COMPROMIS_SIGNE)
-            return false;
-        if (offre.getEtat() != EtatOffre.ACCEPTEE)
-            return false;
-        this.etat = EtatBien.VENDU;
-        return true;
+        return etat.vendre(this,offre);
     }
 
     private String reference;
@@ -189,14 +205,7 @@ public class Bien {
     // Cette m�thode est destin�e � n'�tre applel�e que par le constructeur
     // d'Offre. Si ce n'est pas le cas, elle renvoie false
     public boolean ajouterOffre(Offre offre) throws ArgumentInvalideException, PlusDOffresPossiblesException {
-        if (contientOffre(offre)) // v�rifie d�j� si offre == null
-            return false;
-        if (this.etat != EtatBien.INITIAL)
-            throw new PlusDOffresPossiblesException();
-        if (offre.getBien() != this)
-            return false;
-        offres.add(offre);
-        return true;
+        return etat.ajouterOffre(this,offre);
     }
 
     public boolean contientOffre(Offre offre) throws ArgumentInvalideException {

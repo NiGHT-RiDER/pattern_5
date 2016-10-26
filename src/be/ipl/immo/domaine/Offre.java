@@ -9,6 +9,11 @@ import be.ipl.immo.exceptions.PlusDOffresPossiblesException;
 import be.ipl.immo.util.Util;
 
 public class Offre {
+
+    public boolean isAccepted() {
+        return etat.isAccepted();
+    }
+
     public enum EtatOffre {
         SOUMISE{
             @Override
@@ -77,6 +82,11 @@ public class Offre {
                 return true;
 
             }
+
+            @Override
+            public boolean isAccepted() {
+                return true;
+            }
         },
 
         REFUSEE{
@@ -86,6 +96,7 @@ public class Offre {
         ANNULEE{
 
         };
+        public boolean isAccepted() {return false;}
 
         public boolean accepterOffre(Offre o){
             return false;
